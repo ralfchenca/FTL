@@ -126,3 +126,8 @@ void newOverTimeClient();
  * This also updates `overTimeClientData`.
  */
 void addOverTimeClientSlot();
+
+// external_blocked.c
+void init_blocked_IP(void);
+bool add_blocked_IP(const char* addr, unsigned char type);
+bool is_blocked_IP(const char* addr, unsigned char type);

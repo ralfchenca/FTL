@@ -319,6 +319,8 @@ void read_FTLconf(void)
 	// AUDITLISTFILE
 	getpath(fp, "AUDITLISTFILE", "/etc/pihole/auditlog.list", &files.auditlist);
 
+	init_blocked_IP();
+
 	logg("Finished config file parsing");
 
 	// Release memory

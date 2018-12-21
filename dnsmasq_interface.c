@@ -18,7 +18,7 @@ void print_flags(unsigned int flags);
 void save_reply_type(unsigned int flags, int queryID, struct timeval response);
 unsigned long converttimeval(struct timeval time);
 static void block_single_domain(char *domain);
-static void detect_blocked_IP(unsigned short flags, char* answer, int queryID);
+static void detect_blocked_IP(unsigned short flags, const char* answer, int queryID);
 static void query_externally_blocked(int i);
 static int findQueryID(int id);
 
@@ -503,57 +503,17 @@ void FTL_reply(unsigned short flags, char *name, struct all_addr *addr, int id)
 	unlock_shm();
 }
 
-static void detect_blocked_IP(unsigned short flags, char* answer, int queryID)
+static void detect_blocked_IP(unsigned short flags, const char* answer, int queryID)
 {
 	// Skip replies which originated locally. Otherwise, we would count
 	// gravity.list blocked queries as externally blocked.
 	if(flags & F_HOSTS)
-	{
 		return;
-	}
 
-	// If received one of the following IPs as reply, OpenDNS
-	// (Cisco Umbrella) blocked this query
-	// See https://support.opendns.com/hc/en-us/articles/227986927-What-are-the-Cisco-Umbrella-Block-Page-IP-Addresses-
-	// for a full list of these IP addresses
-	if(flags & F_IPV4 && answer != NULL &&
-		(strcmp("146.112.61.104", answer) == 0 ||
-		 strcmp("146.112.61.105", answer) == 0 ||
-		 strcmp("146.112.61.106", answer) == 0 ||
-		 strcmp("146.112.61.107", answer) == 0 ||
-		 strcmp("146.112.61.108", answer) == 0 ||
-		 strcmp("146.112.61.109", answer) == 0 ||
-		 strcmp("146.112.61.110", answer) == 0 ))
-	{
-			query_externally_blocked(queryID);
-	}
-
-	else if(flags & F_IPV6 && answer != NULL &&
-		(strcmp("::ffff:146.112.61.104", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.105", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.106", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.107", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.108", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.109", answer) == 0 ||
-		 strcmp("::ffff:146.112.61.110", answer) == 0 ))
-	{
-			query_externally_blocked(queryID);
-	}
-
-	// If upstream replied with 0.0.0.0 or ::,
-	// we assume that it filtered the reply as
-	// nothing is reachable under these addresses
-	else if(flags & F_IPV4 && answer != NULL &&
-		strcmp("0.0.0.0", answer) == 0)
-	{
-			query_externally_blocked(queryID);
-	}
-
-	else if(flags & F_IPV6 && answer != NULL &&
-		strcmp("::", answer) == 0)
-	{
-			query_externally_blocked(queryID);
-	}
+	// If received one of the configured IP addresses as reply, recognize as blocked
+	if(((flags & F_IPV4) && is_blocked_IP(answer, 4)) ||
+	   ((flags & F_IPV6) && is_blocked_IP(answer, 6)))
+		query_externally_blocked(queryID);
 }
 
 static void query_externally_blocked(int i)
