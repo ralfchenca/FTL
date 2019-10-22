@@ -24,6 +24,7 @@
 #include "capabilities.h"
 #include "database/gravity-db.h"
 #include "timers.h"
+#include "api/http.h"
 
 char * username;
 bool needGC = false;
@@ -107,6 +108,9 @@ int main (int argc, char* argv[])
 
 	// Close gravity database connection
 	gravityDB_close();
+
+	// Terminate HTTP server
+	http_terminate();
 
 	//Remove PID file
 	removepid();
