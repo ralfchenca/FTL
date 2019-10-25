@@ -142,11 +142,11 @@ void _FTL_new_query(const unsigned int flags, const char *name, const struct all
 	}
 
 	// Update counters
-	counters->querytype[querytype-1]++;
+	counters->querytype[querytype]++;
 
 	// Update overTime
 	const unsigned int timeidx = getOverTimeID(querytimestamp);
-	overTime[timeidx].querytypedata[querytype-1]++;
+	overTime[timeidx].querytypedata[querytype]++;
 
 	// Skip rest of the analysis if this query is not of type A or AAAA
 	// but user wants to see only A and AAAA queries (pre-v4.1 behavior)
