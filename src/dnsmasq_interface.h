@@ -10,7 +10,7 @@
 #ifndef DNSMASQ_INTERFACE_H
 #define DNSMASQ_INTERFACE_H
 
-extern int socketfd, telnetfd4, telnetfd6;
+extern int telnetfd4, telnetfd6;
 extern unsigned char* pihole_privacylevel;
 enum { TCP, UDP };
 

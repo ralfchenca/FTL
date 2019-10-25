@@ -90,7 +90,6 @@ int main (int argc, char* argv[])
 	// Cancel active threads as we don't need them any more
 	if(ipv4telnet) pthread_cancel(telnet_listenthreadv4);
 	if(ipv6telnet) pthread_cancel(telnet_listenthreadv6);
-	pthread_cancel(socket_listenthread);
 
 	// Save new queries to database
 	if(database)
@@ -101,16 +100,15 @@ int main (int argc, char* argv[])
 
 	// Close sockets
 	close_telnet_socket();
-	close_unix_socket();
-
-	// Remove shared memory objects
-	destroy_shmem();
 
 	// Close gravity database connection
 	gravityDB_close();
 
 	// Terminate HTTP server
 	http_terminate();
+
+	// Remove shared memory objects
+	destroy_shmem();
 
 	//Remove PID file
 	removepid();
