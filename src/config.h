@@ -40,7 +40,6 @@ typedef struct {
 	const char* snapConf;
 	char* log;
 	char* pid;
-	char* port;
 	char* FTL_db;
 	char* gravity_db;
 	char* macvendor_db;

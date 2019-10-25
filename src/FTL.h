@@ -40,8 +40,6 @@
 #include <syslog.h>
 // tolower()
 #include <ctype.h>
-// Unix socket
-#include <sys/un.h>
 // Interfaces
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -124,9 +122,6 @@ enum { MODE_IP, MODE_NX, MODE_NULL, MODE_IP_NODATA_AAAA, MODE_NODATA };
 #define calloc(p1,p2) FTLcalloc(p1,p2, __FILE__,  __FUNCTION__,  __LINE__)
 #define realloc(p1,p2) FTLrealloc(p1,p2, __FILE__,  __FUNCTION__,  __LINE__)
 
-extern pthread_t telnet_listenthreadv4;
-extern pthread_t telnet_listenthreadv6;
-extern pthread_t socket_listenthread;
 extern pthread_t DBthread;
 extern pthread_t GCthread;
 extern pthread_t DNSclientthread;
