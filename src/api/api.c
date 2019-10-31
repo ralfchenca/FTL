@@ -894,14 +894,17 @@ int api_ftl_db(struct mg_connection *conn)
 	JSON_SENT_OBJECT(json);
 }
 
-void getClientsOverTime(struct mg_connection *conn)
+int api_stats_overTime_clients(struct mg_connection *conn)
 {
 	int sendit = -1, until = OVERTIME_SLOTS;
 
 	// Exit before processing any data if requested via config setting
 	get_privacy_level(NULL);
 	if(config.privacylevel >= PRIVACY_HIDE_DOMAINS_CLIENTS)
-		return;
+	{
+		cJSON *json = JSON_NEW_OBJ();
+		JSON_SENT_OBJECT(json);
+	}
 
 	// Find minimum ID to send
 	for(int slot = 0; slot < OVERTIME_SLOTS; slot++)
@@ -914,7 +917,10 @@ void getClientsOverTime(struct mg_connection *conn)
 		}
 	}
 	if(sendit < 0)
-		return;
+	{
+		cJSON *json = JSON_NEW_OBJ();
+		JSON_SENT_OBJECT(json);
+	}
 
 	// Find minimum ID to send
 	for(int slot = 0; slot < OVERTIME_SLOTS; slot++)
@@ -949,12 +955,15 @@ void getClientsOverTime(struct mg_connection *conn)
 		}
 	}
 
+	cJSON *over_time = JSON_NEW_ARRAY();
 	// Main return loop
 	for(int slot = sendit; slot < until; slot++)
 	{
-		http_send(conn, false, "%li", overTime[slot].timestamp);
+		cJSON *item = JSON_NEW_OBJ();
+		JSON_OBJ_ADD_NUMBER(item, "timestamp", overTime[slot].timestamp);
 
-		// Loop over forward destinations to generate output to be sent to the client
+		// Loop over clients to generate output to be sent to the client
+		cJSON *data = JSON_NEW_ARRAY();
 		for(int clientID = 0; clientID < counters->clients; clientID++)
 		{
 			if(skipclient[clientID])
@@ -964,46 +973,15 @@ void getClientsOverTime(struct mg_connection *conn)
 			const clientsData* client = getClient(clientID, true);
 			const int thisclient = client->overTime[slot];
 
-			http_send(conn, false, " %i", thisclient);
+			JSON_ARRAY_ADD_NUMBER(data, thisclient);
 		}
-
-		http_send(conn, false, "\n");
+		JSON_OBJ_ADD_ITEM(item, "data", data);
+		JSON_ARRAY_ADD_ITEM(over_time, item);
 	}
+	cJSON *json = JSON_NEW_OBJ();
+	JSON_OBJ_ADD_ITEM(json, "over_time", over_time);
 
-	if(excludeclients != NULL)
-		clearSetupVarsArray();
-}
-
-void getClientNames(struct mg_connection *conn)
-{
-	// Exit before processing any data if requested via config setting
-	get_privacy_level(NULL);
-	if(config.privacylevel >= PRIVACY_HIDE_DOMAINS_CLIENTS)
-		return;
-
-	// Get clients which the user doesn't want to see
-	char * excludeclients = read_setupVarsconf("API_EXCLUDE_CLIENTS");
-	// Array of clients to be skipped in the output
-	// if skipclient[i] == true then this client should be hidden from
-	// returned data. We initialize it with false
-	bool skipclient[counters->clients];
-	memset(skipclient, false, counters->clients*sizeof(bool));
-
-	if(excludeclients != NULL)
-	{
-		getSetupVarsArray(excludeclients);
-
-		for(int clientID=0; clientID < counters->clients; clientID++)
-		{
-			// Get client pointer
-			const clientsData* client = getClient(clientID, true);
-			// Check if this client should be skipped
-			if(insetupVarsArray(getstr(client->ippos)) ||
-			   insetupVarsArray(getstr(client->namepos)))
-				skipclient[clientID] = true;
-		}
-	}
-
+	cJSON *clients = JSON_NEW_ARRAY();
 	// Loop over clients to generate output to be sent to the client
 	for(int clientID = 0; clientID < counters->clients; clientID++)
 	{
@@ -1011,13 +989,19 @@ void getClientNames(struct mg_connection *conn)
 			continue;
 
 		// Get client pointer
-		const clientsData* client = getClient(clientID, true);
-		const char *client_ip = getstr(client->ippos);
-		const char *client_name = getstr(client->namepos);
+		const clientsData* clientData = getClient(clientID, true);
+		const char *client_ip = getstr(clientData->ippos);
+		const char *client_name = getstr(clientData->namepos);
 
-		http_send(conn, false, "%s %s\n", client_name, client_ip);
+		cJSON *item = JSON_NEW_OBJ();
+		JSON_OBJ_REF_STR(item, "name", client_name);
+		JSON_OBJ_REF_STR(item, "ip", client_ip);
+		JSON_ARRAY_ADD_ITEM(clients, item);
 	}
+	JSON_OBJ_ADD_ITEM(json, "clients", clients);
 
 	if(excludeclients != NULL)
 		clearSetupVarsArray();
+
+	JSON_SENT_OBJECT(json);
 }
