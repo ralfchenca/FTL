@@ -188,6 +188,18 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 		{
 			show = num;
 		}
+
+		// Apply Audit Log filtering?
+		if(strstr(request->query_string, "audit=true") != NULL)
+		{
+			audit = true;
+		}
+
+		// Sort in ascending order?
+		if(strstr(request->query_string, "sort=asc") != NULL)
+		{
+			asc = true;
+		}
 	}
 
 	// Exit before processing any data if requested via config setting
@@ -197,17 +209,7 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 		cJSON *json = JSON_NEW_ARRAY();
 		JSON_SENT_OBJECT(json);
 	}
-/*
-	// Apply Audit Log filtering?
-	// example: >top-domains for audit
-	if(command(client_message, " for audit"))
-		audit = true;
 
-	// Sort in ascending order?
-	// example: >top-domains asc
-	if(command(client_message, " asc"))
-		asc = true;
-*/
 	for(int domainID=0; domainID < counters->domains; domainID++)
 	{
 		// Get domain pointer
@@ -327,6 +329,7 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 {
 	int temparray[counters->clients][2], show=10;
+	bool asc = false, includezeroclients = false;
 
 	// /api/stats/top_clients9?blocked=true is allowed as well
 	const struct mg_request_info *request = mg_get_request_info(conn);
@@ -344,6 +347,18 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 		{
 			show = num;
 		}
+
+		// Sort in ascending order?
+		if(strstr(request->query_string, "sort=asc") != NULL)
+		{
+			asc = true;
+		}
+
+		// Show also clients which have not been active recently?
+		if(strstr(request->query_string, "withzero=true") != NULL)
+		{
+			includezeroclients = true;
+		}
 	}
 
 	// Exit before processing any data if requested via config setting
@@ -354,21 +369,6 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 		JSON_SENT_OBJECT(json);
 	}
 
-	// Show also clients which have not been active recently?
-	// This option can be combined with existing options,
-	// i.e. both >top-clients withzero" and ">top-clients withzero (123)" are valid
-	bool includezeroclients = false;
-/*
-	if(command(client_message, " withzero"))
-		includezeroclients = true;
-*/
-	// Show number of blocked queries instead of total number?
-	// This option can be combined with existing options,
-	// i.e. ">top-clients withzero blocked (123)" would be valid
-/*
-	if(command(client_message, " blocked"))
-		blocked = true;
-*/
 	for(int clientID = 0; clientID < counters->clients; clientID++)
 	{
 		// Get client pointer
@@ -378,13 +378,6 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 		temparray[clientID][1] = blocked ? client->blockedcount : client->count;
 	}
 
-	// Sort in ascending order?
-	// example: >top-clients asc
-	bool asc = false;
-/*
-	if(command(client_message, " asc"))
-		asc = true;
-*/
 	// Sort temporary array
 	if(asc)
 		qsort(temparray, counters->clients, sizeof(int[2]), cmpasc);
