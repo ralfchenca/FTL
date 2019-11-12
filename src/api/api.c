@@ -74,6 +74,9 @@ int api_stats_summary(struct mg_connection *conn)
 	{
 		// Get client pointer
 		const clientsData* client = getClient(clientID, true);
+		if(client == NULL)
+			continue;
+
 		if(client->count > 0)
 			activeclients++;
 	}
@@ -214,6 +217,8 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 	{
 		// Get domain pointer
 		const domainsData* domain = getDomain(domainID, true);
+		if(domain == NULL)
+			continue;
 
 		temparray[domainID][0] = domainID;
 		if(blocked)
@@ -266,6 +271,8 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 		const int domainID = temparray[i][0];
 		// Get domain pointer
 		const domainsData* domain = getDomain(domainID, true);
+		if(domain == NULL)
+			continue;
 
 		// Skip this domain if there is a filter on it
 		if(excludedomains != NULL && insetupVarsArray(getstr(domain->domainpos)))
@@ -373,6 +380,8 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 	{
 		// Get client pointer
 		const clientsData* client = getClient(clientID, true);
+		if(client == NULL)
+			continue;
 		temparray[clientID][0] = clientID;
 		// Use either blocked or total count based on request string
 		temparray[clientID][1] = blocked ? client->blockedcount : client->count;
@@ -400,6 +409,8 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 		const int count = temparray[i][1];
 		// Get client pointer
 		const clientsData* client = getClient(clientID, true);
+		if(client == NULL)
+			continue;
 
 		// Skip this client if there is a filter on it
 		if(excludeclients != NULL &&
@@ -466,6 +477,8 @@ int api_stats_upstreams(struct mg_connection *conn)
 		if(sort) {
 			// Get forward pointer
 			const forwardedData* forward = getForward(forwardID, true);
+			if(forward == NULL)
+				continue;
 
 			temparray[forwardID][0] = forwardID;
 			temparray[forwardID][1] = forward->count;
@@ -511,6 +524,8 @@ int api_stats_upstreams(struct mg_connection *conn)
 
 			// Get forward pointer
 			const forwardedData* forward = getForward(forwardID, true);
+			if(forward == NULL)
+				continue;
 
 			// Get IP and host name of forward destination if available
 			ip = getstr(forward->ippos);
@@ -618,6 +633,9 @@ int api_stats_history(const char *client_message, struct mg_connection *conn)
 			{
 				// Get forward pointer
 				const forwardedData* forward = getForward(i, true);
+				if(forward == NULL)
+					continue;
+
 				// Try to match the requested string against their IP addresses and
 				// (if available) their host names
 				if(strcmp(getstr(forward->ippos), forwarddest) == 0 ||
@@ -650,6 +668,8 @@ int api_stats_history(const char *client_message, struct mg_connection *conn)
 		{
 			// Get domain pointer
 			const domainsData* domain = getDomain(domainID, true);
+			if(domain == NULL)
+				continue;
 
 			// Try to match the requested string
 			if(strcmp(getstr(domain->domainpos), domainname) == 0)
@@ -680,6 +700,9 @@ int api_stats_history(const char *client_message, struct mg_connection *conn)
 		{
 			// Get client pointer
 			const clientsData* client = getClient(i, true);
+			if(client == NULL)
+				continue;
+
 			// Try to match the requested string
 			if(strcmp(getstr(client->ippos), clientname) == 0 ||
 			   (client->namepos != 0 &&
@@ -731,7 +754,8 @@ int api_stats_history(const char *client_message, struct mg_connection *conn)
 	{
 		const queriesData* query = getQuery(queryID, true);
 		// Check if this query has been create while in maximum privacy mode
-		if(query->privacylevel >= PRIVACY_MAXIMUM) continue;
+		if(query == NULL || query->privacylevel >= PRIVACY_MAXIMUM)
+			continue;
 
 		// Verify query type
 		if(query->type >= TYPE_MAX)
@@ -786,6 +810,9 @@ int api_stats_history(const char *client_message, struct mg_connection *conn)
 		const char *clientIPName = NULL;
 		// Get client pointer
 		const clientsData* client = getClient(query->clientID, true);
+		if(domain == NULL || client == NULL)
+			continue;
+
 		if(strlen(getstr(client->namepos)) > 0)
 			clientIPName = getClientNameString(queryID);
 		else
@@ -842,6 +869,8 @@ void getRecentBlocked(const char *client_message, struct mg_connection *conn)
 	for(int queryID = counters->queries - 1; queryID > 0 ; queryID--)
 	{
 		const queriesData* query = getQuery(queryID, true);
+		if(query == NULL)
+			continue;
 
 		if(query->status == QUERY_GRAVITY ||
 		   query->status == QUERY_WILDCARD ||
@@ -852,6 +881,8 @@ void getRecentBlocked(const char *client_message, struct mg_connection *conn)
 			// Ask subroutine for domain. It may return "hidden" depending on
 			// the privacy settings at the time the query was made
 			const char *domain = getDomainString(queryID);
+			if(domain == NULL)
+				continue;
 
 			http_send(conn, false, "%s\n", domain);
 		}
@@ -1008,6 +1039,8 @@ int api_stats_overTime_clients(struct mg_connection *conn)
 		{
 			// Get client pointer
 			const clientsData* client = getClient(clientID, true);
+			if(client == NULL)
+				continue;
 			// Check if this client should be skipped
 			if(insetupVarsArray(getstr(client->ippos)) ||
 			   insetupVarsArray(getstr(client->namepos)))
@@ -1031,9 +1064,12 @@ int api_stats_overTime_clients(struct mg_connection *conn)
 
 			// Get client pointer
 			const clientsData* client = getClient(clientID, true);
+			if(client == NULL)
+				continue;
 			const int thisclient = client->overTime[slot];
 
 			JSON_ARRAY_ADD_NUMBER(data, thisclient);
+
 		}
 		JSON_OBJ_ADD_ITEM(item, "data", data);
 		JSON_ARRAY_ADD_ITEM(over_time, item);
@@ -1050,6 +1086,9 @@ int api_stats_overTime_clients(struct mg_connection *conn)
 
 		// Get client pointer
 		const clientsData* clientData = getClient(clientID, true);
+		if(clientData == NULL)
+			continue;
+
 		const char *client_ip = getstr(clientData->ippos);
 		const char *client_name = getstr(clientData->namepos);
 
