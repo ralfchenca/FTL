@@ -102,6 +102,10 @@
 // Default: 1000 (one second)
 #define DATABASE_BUSY_TIMEOUT 1000
 
+// After how much time does a valid API session expire? [seconds]
+// Default: 300 (five minutes)
+#define API_SESSION_EXPIRE 300
+
 // FTLDNS enums
 enum { QUERIES, FORWARDED, CLIENTS, DOMAINS, OVERTIME, WILDCARD };
 enum { DNSSEC_UNSPECIFIED, DNSSEC_SECURE, DNSSEC_INSECURE, DNSSEC_BOGUS, DNSSEC_ABANDONED, DNSSEC_UNKNOWN };
