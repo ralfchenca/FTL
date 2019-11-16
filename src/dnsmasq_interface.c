@@ -235,7 +235,7 @@ void _FTL_new_query(const unsigned int flags, const char *name, const struct all
 	domainsData* domain = getDomain(domainID, true);
 
 	// Try blocking regex if configured
-	if(domain->regexmatch == REGEX_UNKNOWN && blockingstatus != BLOCKING_DISABLED)
+	if(domain->regexmatch == REGEX_UNKNOWN && get_blockingstatus() != BLOCKING_DISABLED)
 	{
 		// For minimal performance impact, we test the regex only when
 		// - regex checking is enabled, and
@@ -430,10 +430,6 @@ void FTL_dnsmasq_reload(void)
 	// Called when dnsmasq re-reads its config and hosts files
 	// Reset number of blocked domains
 	counters->gravity = 0;
-
-	// Inspect 01-pihole.conf to see if Pi-hole blocking is enabled,
-	// i.e. if /etc/pihole/gravity.list is sourced as addn-hosts file
-	check_blocking_status();
 
 	// Reread pihole-FTL.conf to see which blocking mode the user wants to use
 	// It is possible to change the blocking mode here as we anyhow clear the
@@ -1557,7 +1553,7 @@ int FTL_database_import(int cache_size, struct crec **rhash, int hashsz)
 	struct all_addr addr4 = {{{ 0 }}}, addr6 = {{{ 0 }}};
 	bool has_IPv4 = false, has_IPv6 = false;
 
-	if(blockingstatus == BLOCKING_DISABLED)
+	if(get_blockingstatus() == BLOCKING_DISABLED)
 	{
 		logg("Skipping import of database tables because blocking is disabled");
 		return cache_size;

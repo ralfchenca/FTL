@@ -82,6 +82,9 @@ int main (int argc, char* argv[])
 	// immediately before starting the resolver.
 	check_capabilities();
 
+	// Check initial blocking status
+	check_blocking_status();
+
 	// Start the resolver
 	main_dnsmasq(argc_dnsmasq, argv_dnsmasq);
 
