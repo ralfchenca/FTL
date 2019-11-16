@@ -42,7 +42,7 @@ bool gravityDB_open(void)
 		return false;
 	}
 
-	int rc = sqlite3_open_v2(FTLfiles.gravity_db, &gravity_db, SQLITE_OPEN_READONLY, NULL);
+	int rc = sqlite3_open_v2(FTLfiles.gravity_db, &gravity_db, SQLITE_OPEN_READWRITE, NULL);
 	if( rc != SQLITE_OK )
 	{
 		logg("gravityDB_open() - SQL error (%i): %s", rc, sqlite3_errmsg(gravity_db));
@@ -347,3 +347,49 @@ bool in_auditlist(const char *domain)
 	return domain_in_list(domain, auditlist_stmt);
 }
 
+bool gravityDB_addToTable(const char *table, const char* domain)
+{
+	char *querystr = NULL;
+	// Build query string
+	if(asprintf(&querystr, "INSERT INTO %s (domain) VALUES (?);", table) < 30)
+	{
+		logg("gravityDB_addToTable(%s, %s) - asprintf() error", table, domain);
+		return false;
+	}
+
+	// Prepare SQLite statement
+	sqlite3_stmt* stmt = NULL;
+	int rc = sqlite3_prepare_v2(gravity_db, querystr, -1, &stmt, NULL);
+	if( rc != SQLITE_OK ){
+		logg("gravityDB_addToTable(%s, %s) - SQL error prepare (%i): %s",
+		     table, domain, rc, sqlite3_errmsg(gravity_db));
+		return false;
+	}
+
+	// Bind domain to prepared statement
+	if((rc = sqlite3_bind_text(stmt, 1, domain, -1, SQLITE_STATIC)) != SQLITE_OK)
+	{
+		logg("gravityDB_addToTable(%s, %s): Failed to bind domain (error %d) - %s",
+		     table, domain, rc, sqlite3_errmsg(gravity_db));
+		sqlite3_reset(stmt);
+		sqlite3_finalize(stmt);
+		return false;
+	}
+
+	rc = sqlite3_step(stmt);
+	if(rc == SQLITE_ROW)
+	{
+		// Database record found (result might be empty)
+		logg("ROW");
+	}
+	else
+	{
+		logg("Returned %i", rc);
+	}
+
+	// Finalize statement and close database handle
+	sqlite3_reset(stmt);
+	sqlite3_finalize(stmt);
+
+	return true;
+}
