@@ -9,7 +9,9 @@
 *  Please see LICENSE file for your rights under this license. */
 
 #include "FTL.h"
-#include "api.h"
+#include "http-common.h"
+#include "routes.h"
+#include "json_macros.h"
 #include "database/gravity-db.h"
 #include "log.h"
 // {s,g}et_blockingstatus()
