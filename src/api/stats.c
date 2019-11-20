@@ -469,7 +469,6 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 
 int api_stats_upstreams(struct mg_connection *conn)
 {
-	bool sort = true;
 	int temparray[counters->forwarded][2];
 
 	// Verify requesting client is allowed to see this ressource
@@ -477,30 +476,23 @@ int api_stats_upstreams(struct mg_connection *conn)
 	{
 		return send_json_unauthorized(conn, NULL);
 	}
-/*
-	if(command(client_message, "unsorted"))
-		sort = false;
-*/
+
 	for(int forwardID = 0; forwardID < counters->forwarded; forwardID++)
 	{
 		// If we want to print a sorted output, we fill the temporary array with
 		// the values we will use for sorting afterwards
-		if(sort) {
-			// Get forward pointer
-			const forwardedData* forward = getForward(forwardID, true);
-			if(forward == NULL)
-				continue;
 
-			temparray[forwardID][0] = forwardID;
-			temparray[forwardID][1] = forward->count;
-		}
+		// Get forward pointer
+		const forwardedData* forward = getForward(forwardID, true);
+		if(forward == NULL)
+			continue;
+
+		temparray[forwardID][0] = forwardID;
+		temparray[forwardID][1] = forward->count;
 	}
 
-	if(sort)
-	{
-		// Sort temporary array in descending order
-		qsort(temparray, counters->forwarded, sizeof(int[2]), cmpdesc);
-	}
+	// Sort temporary array in descending order
+	qsort(temparray, counters->forwarded, sizeof(int[2]), cmpdesc);
 
 	// Loop over available forward destinations
 	cJSON *upstreams = JSON_NEW_ARRAY();
@@ -527,11 +519,7 @@ int api_stats_upstreams(struct mg_connection *conn)
 		{
 			// Regular forward destionation
 			// Get sorted indices
-			int forwardID;
-			if(sort)
-				forwardID = temparray[i][0];
-			else
-				forwardID = i;
+			const int forwardID = temparray[i][0];
 
 			// Get forward pointer
 			const forwardedData* forward = getForward(forwardID, true);
@@ -945,7 +933,7 @@ int api_stats_history(struct mg_connection *conn)
 
 int api_stats_recentblocked(struct mg_connection *conn)
 {
-	unsigned int num=1;
+	unsigned int num = 1;
 
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
