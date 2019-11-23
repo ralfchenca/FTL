@@ -277,9 +277,8 @@ bool init_shmem(void)
 	initOverTime();
 
 	/****************************** shared fifo_buffer struct ******************************/
-	size = get_optimal_object_size(sizeof(fifologData), 1u);
 	// Try to create shared memory object
-	shm_fifo_log = create_shm(SHARED_FIFO_LOG_NAME, size*sizeof(fifologData));
+	shm_fifo_log = create_shm(SHARED_FIFO_LOG_NAME, sizeof(fifologData));
 	fifo_log = (fifologData*)shm_fifo_log.ptr;
 
 	return true;
