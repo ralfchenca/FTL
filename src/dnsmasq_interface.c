@@ -34,6 +34,8 @@
 #include "args.h"
 // http_init()
 #include "api/http-common.h"
+// add_to_dnsmasq_log_buffer()
+#include "api/ftl.h"
 
 static void print_flags(const unsigned int flags);
 static void save_reply_type(const unsigned int flags, queriesData* query, const struct timeval response);
@@ -1594,24 +1596,5 @@ int FTL_database_import(int cache_size, struct crec **rhash, int hashsz)
 
 void FTL_dnsmasq_log(const char *payload, const int length)
 {
-	// Get temporary space for dnsmasq's log message
-	char log_str[length + 1u];
-
-	// Copy relevant string into temporary buffer
-	memcpy(log_str, payload, length);
-
-	// Zero-terminate buffer, truncate newline if found
-	if(log_str[length - 1u] == '\n')
-	{
-		log_str[length - 1u] = '\0';
-	}
-	else
-	{
-		log_str[length] = '\0';
-	}
-
-	if(config.debug & DEBUG_API)
-	{
-		logg("DNSMASQ LOG: \"%s\"", log_str);
-	}
+	add_to_dnsmasq_log_fifo_buffer(payload, length);
 }
