@@ -16,6 +16,8 @@
 #include "config.h"
 // data getter functions
 #include "datastructure.h"
+// fifologData
+#include "api/ftl.h"
 
 /// The version of shared memory used
 #define SHARED_MEMORY_VERSION 7
@@ -30,6 +32,7 @@
 #define SHARED_FORWARDED_NAME "/FTL-forwarded"
 #define SHARED_OVERTIME_NAME "/FTL-overTime"
 #define SHARED_SETTINGS_NAME "/FTL-settings"
+#define SHARED_FIFO_LOG_NAME "/FTL-fifo-log"
 
 /// The pointer in shared memory to the shared string buffer
 static SharedMemory shm_lock = { 0 };
@@ -41,6 +44,7 @@ static SharedMemory shm_queries = { 0 };
 static SharedMemory shm_forwarded = { 0 };
 static SharedMemory shm_overTime = { 0 };
 static SharedMemory shm_settings = { 0 };
+static SharedMemory shm_fifo_log = { 0 };
 
 // Variable size array structs
 static queriesData *queries = NULL;
@@ -272,6 +276,12 @@ bool init_shmem(void)
 	overTime = (overTimeData*)shm_overTime.ptr;
 	initOverTime();
 
+	/****************************** shared fifo_buffer struct ******************************/
+	size = get_optimal_object_size(sizeof(fifologData), 1u);
+	// Try to create shared memory object
+	shm_fifo_log = create_shm(SHARED_FIFO_LOG_NAME, size*sizeof(fifologData));
+	fifo_log = (fifologData*)shm_fifo_log.ptr;
+
 	return true;
 }
 
@@ -289,6 +299,7 @@ void destroy_shmem(void)
 	delete_shm(&shm_forwarded);
 	delete_shm(&shm_overTime);
 	delete_shm(&shm_settings);
+	delete_shm(&shm_fifo_log);
 }
 
 SharedMemory create_shm(const char *name, const size_t size)
