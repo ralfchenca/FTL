@@ -449,6 +449,11 @@ void FTL_dnsmasq_reload(void)
 	// only after having called gravityDB_open()
 	read_regex_from_database();
 
+	// Re-read index.html
+	// This is necessary when the content of /admin is updated as
+	// the paths of the contained JS/CSS scripts will have changed
+	http_reread_index_html();
+
 	// Print current set of capabilities if requested via debug flag
 	if(config.debug & DEBUG_CAPS)
 		check_capabilities();
