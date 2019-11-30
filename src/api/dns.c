@@ -36,7 +36,7 @@ int api_dns_status(struct mg_connection *conn)
 		// Verify requesting client is allowed to access this ressource
 		if(check_client_auth(conn) < 0)
 		{
-			return send_json_unauthorized(conn, NULL);
+			return send_json_unauthorized(conn);
 		}
 
 		char buffer[1024];
@@ -44,7 +44,7 @@ int api_dns_status(struct mg_connection *conn)
 		if ((data_len < 1) || (data_len >= (int)sizeof(buffer))) {
 			return send_json_error(conn, 400,
 			                       "bad_request", "No request body data",
-                                               NULL, NULL);
+                                               NULL);
 		}
 		buffer[data_len] = '\0';
 
@@ -53,7 +53,7 @@ int api_dns_status(struct mg_connection *conn)
 			return send_json_error(conn, 400,
                                                "bad_request",
                                                "Invalid request body data",
-                                                NULL, NULL);
+                                                NULL);
 		}
 
 		cJSON *elem1 = cJSON_GetObjectItemCaseSensitive(obj, "action");
@@ -62,7 +62,7 @@ int api_dns_status(struct mg_connection *conn)
 			return send_json_error(conn, 400,
 			                       "bad_request",
                                                "No \"action\" string in body data",
-                                               NULL, NULL);
+                                               NULL);
 		}
 		const char *action = elem1->valuestring;
 
@@ -98,7 +98,7 @@ int api_dns_status(struct mg_connection *conn)
 			return send_json_error(conn, 400,
 			                       "bad_request",
                                                "Invalid \"action\" requested",
-                                               NULL, NULL);
+                                               NULL);
 		}
 		JSON_SEND_OBJECT(json);
 	}
@@ -145,7 +145,7 @@ static int api_dns_somelist_POST(struct mg_connection *conn,
 	if ((data_len < 1) || (data_len >= (int)sizeof(buffer))) {
 		return send_json_error(conn, 400,
                                        "bad_request", "No request body data",
-                                       NULL, NULL);
+                                       NULL);
 	}
 	buffer[data_len] = '\0';
 
@@ -154,7 +154,7 @@ static int api_dns_somelist_POST(struct mg_connection *conn,
 		return send_json_error(conn, 400,
                                        "bad_request",
                                        "Invalid request body data",
-                                       NULL, NULL);
+                                       NULL);
 	}
 
 	cJSON *elem = cJSON_GetObjectItemCaseSensitive(obj, "domain");
@@ -164,7 +164,7 @@ static int api_dns_somelist_POST(struct mg_connection *conn,
 		return send_json_error(conn, 400,
                                        "bad_request",
                                        "No \"domain\" string in body data",
-                                       NULL, NULL);
+                                       NULL);
 	}
 	const char *domain = elem->valuestring;
 
@@ -195,7 +195,7 @@ static int api_dns_somelist_POST(struct mg_connection *conn,
 		return send_json_error(conn, 500,
                                        "database_error",
                                        "Could not add domain to database table",
-                                       json, NULL);
+                                       json);
 	}
 }
 
@@ -236,7 +236,7 @@ static int api_dns_somelist_DELETE(struct mg_connection *conn,
 		return send_json_error(conn, 500,
                                        "database_error",
                                        "Could not remove domain from database table",
-                                       json, NULL);
+                                       json);
 	}
 }
 
@@ -245,7 +245,7 @@ int api_dns_somelist(struct mg_connection *conn, bool exact, bool whitelist)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	int method = http_method(conn);

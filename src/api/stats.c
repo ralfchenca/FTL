@@ -169,7 +169,7 @@ int api_stats_top_domains(bool blocked, struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	// Exit before processing any data if requested via config setting
@@ -326,7 +326,7 @@ int api_stats_top_clients(bool blocked, struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	// Exit before processing any data if requested via config setting
@@ -448,7 +448,7 @@ int api_stats_upstreams(struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	for(int forwardID = 0; forwardID < counters->forwarded; forwardID++)
@@ -564,7 +564,7 @@ int api_stats_history(struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	// Do we want a more specific version of this command (domain/client/time interval filtered)?
@@ -662,7 +662,7 @@ int api_stats_history(struct mg_connection *conn)
 					return send_json_error(conn, 400,
 					"bad_request",
 					"Requested upstream not found",
-					json, NULL);
+					json);
 				}
 			}
 		}
@@ -705,7 +705,7 @@ int api_stats_history(struct mg_connection *conn)
 				return send_json_error(conn, 400,
 				                       "bad_request",
 				                       "Requested domain not found",
-				                       json, NULL);
+				                       json);
 			}
 		}
 
@@ -750,7 +750,7 @@ int api_stats_history(struct mg_connection *conn)
 				return send_json_error(conn, 400,
 				"bad_request",
 				"Requested client not found",
-				json, NULL);
+				json);
 			}
 		}
 
@@ -775,7 +775,7 @@ int api_stats_history(struct mg_connection *conn)
 				return send_json_error(conn, 400,
 				"bad_request",
 				"Requested cursor larger than number of queries",
-				json, NULL);
+				json);
 			}
 			
 		}
@@ -936,7 +936,7 @@ int api_stats_recentblocked(struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	// Exit before processing any data if requested via config setting
@@ -1006,7 +1006,7 @@ int api_stats_overTime_clients(struct mg_connection *conn)
 	// Verify requesting client is allowed to see this ressource
 	if(check_client_auth(conn) < 0)
 	{
-		return send_json_unauthorized(conn, NULL);
+		return send_json_unauthorized(conn);
 	}
 
 	// Exit before processing any data if requested via config setting
