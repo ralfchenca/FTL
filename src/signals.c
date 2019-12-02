@@ -17,6 +17,8 @@
 #include "memory.h"
 // ls_dir()
 #include "files.h"
+// http_reread_index_html()
+#include "api/http-common.h"
 
 volatile sig_atomic_t killed = 0;
 static time_t FTLstarttime = 0;
@@ -82,6 +84,15 @@ static void SIGRT_handler(int signum, siginfo_t *si, void *unused)
 { 
 	int rtsig = signum - SIGRTMIN;
 	logg("Received: %s (%d -> %d)", strsignal(signum), signum, rtsig);
+
+	// rtsig == 0 is reserved for reloading FTLs internal DNS cache (branch new/internal-blocking)
+	if(rtsig == 1)
+	{
+		// Re-read index.html
+		// This is necessary when the content of /admin is updated as
+		// the paths of the contained JS/CSS scripts will have changed
+		http_reread_index_html();
+	}
 } 
 
 void handle_signals(void)
