@@ -426,6 +426,7 @@ void FTL_dnsmasq_reload(void)
 	// This is the only hook that is not skipped in PRIVACY_NOSTATS mode
 
 	logg("Reloading DNS cache");
+	lock_shm();
 
 	// Called when dnsmasq re-reads its config and hosts files
 	// Reset number of blocked domains
@@ -449,14 +450,11 @@ void FTL_dnsmasq_reload(void)
 	// only after having called gravityDB_open()
 	read_regex_from_database();
 
-	// Re-read index.html
-	// This is necessary when the content of /admin is updated as
-	// the paths of the contained JS/CSS scripts will have changed
-	http_reread_index_html();
-
 	// Print current set of capabilities if requested via debug flag
 	if(config.debug & DEBUG_CAPS)
 		check_capabilities();
+
+	unlock_shm();
 }
 
 void _FTL_reply(const unsigned short flags, const char *name, const struct all_addr *addr, const int id,
