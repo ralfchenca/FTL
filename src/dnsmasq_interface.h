@@ -10,6 +10,9 @@
 #ifndef DNSMASQ_INTERFACE_H
 #define DNSMASQ_INTERFACE_H
 
+// cacheinforecord
+#include "api/dns.h"
+
 extern unsigned char* pihole_privacylevel;
 enum { TCP, UDP };
 
@@ -36,8 +39,6 @@ void _FTL_forwarding_failed(const struct server *server, const char* file, const
 
 #define FTL_upstream_error(rcode, id) _FTL_upstream_error(rcode, id, __FILE__, __LINE__)
 void _FTL_upstream_error(const unsigned int rcode, const int id, const char* file, const int line);
-
-int *getCacheInformation(void);
 
 void FTL_dnsmasq_reload(void);
 void FTL_fork_and_bind_sockets(struct passwd *ent_pw);
