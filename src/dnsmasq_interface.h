@@ -43,6 +43,11 @@ void _FTL_upstream_error(const unsigned int rcode, const int id, const char* fil
 void FTL_dnsmasq_reload(void);
 void FTL_fork_and_bind_sockets(struct passwd *ent_pw);
 int FTL_database_import(int cache_size, struct crec **rhash, int hashsz);
+void set_debug_dnsmasq_lines(char enabled);
+
+extern char debug_dnsmasq_lines;
+
+extern char debug_dnsmasq_lines;
 
 void FTL_dnsmasq_log(const char *payload, const int length);
 
