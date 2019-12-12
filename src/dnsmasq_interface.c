@@ -664,10 +664,6 @@ void FTL_dnsmasq_reload(void)
 	logg("Reloading DNS cache");
 	lock_shm();
 
-	// Inspect 01-pihole.conf to see if Pi-hole blocking is enabled,
-	// i.e. if /etc/pihole/gravity.list is sourced as addn-hosts file
-	check_blocking_status();
-
 	// Reread pihole-FTL.conf to see which blocking mode the user wants to use
 	// It is possible to change the blocking mode here as we anyhow clear the
 	// cache and reread all blocking lists
