@@ -12,21 +12,8 @@
   [[ ${lines[0]} == "1" ]]
 }
 
-@test "Number of imported gravity domains as expected" {
-  run bash -c 'grep -c "Database (gravity): imported 1 domains" /var/log/pihole-FTL.log'
-  printf "%s\n" "${lines[@]}"
-  [[ ${lines[0]} == "1" ]]
-}
-
-
 @test "Number of compiled regex filters as expected" {
   run bash -c 'grep -c "Compiled 2 whitelist and 1 blacklist regex filters" /var/log/pihole-FTL.log'
-  printf "%s\n" "${lines[@]}"
-  [[ ${lines[0]} == "1" ]]
-}
-
-@test "Number of imported blacklist domains as expected" {
-  run bash -c 'grep -c "Database (blacklist): imported 1 domains" /var/log/pihole-FTL.log'
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} == "1" ]]
 }
@@ -45,18 +32,23 @@
   [[ ${lines[1]} == "" ]]
 }
 
+@test "Gravity domain is blocked (TCP)" {
+  run bash -c "dig gravity-blocked.test.pi-hole.net @127.0.0.1 +tcp +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} == "0.0.0.0" ]]
+  [[ ${lines[1]} == "" ]]
+}
+
 @test "Gravity domain + whitelist exact match is not blocked" {
   run bash -c "dig whitelisted.test.pi-hole.net @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} != "0.0.0.0" ]]
-  [[ ${lines[1]} == "" ]]
 }
 
 @test "Gravity domain + whitelist regex match is not blocked" {
   run bash -c "dig discourse.pi-hole.net @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} != "0.0.0.0" ]]
-  [[ ${lines[1]} == "" ]]
 }
 
 @test "Regex blacklist match is blocked" {
@@ -76,21 +68,54 @@
   run bash -c "dig regex1.test.pi-hole.net @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} != "0.0.0.0" ]]
-  [[ ${lines[1]} == "" ]]
 }
 
 @test "Regex blacklist match + whitelist regex match is not blocked" {
   run bash -c "dig regex2.test.pi-hole.net @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} != "0.0.0.0" ]]
-  [[ ${lines[1]} == "" ]]
+}
+
+@test "Client 2: Gravity match matching unassociated whitelist is blocked" {
+  run bash -c "dig whitelisted.test.pi-hole.net -b 127.0.0.2 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} == "0.0.0.0" ]]
+}
+
+@test "Client 2: Regex blacklist match matching unassociated whitelist is blocked" {
+  run bash -c "dig regex1.test.pi-hole.net -b 127.0.0.2 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} == "0.0.0.0" ]]
+}
+
+@test "Client 2: Unassociated blacklist match is not blocked" {
+  run bash -c "dig blacklist-blocked.test.pi-hole.net -b 127.0.0.2 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
+}
+
+@test "Client 3: Exact blacklist domain is not blocked" {
+  run bash -c "dig blacklist-blocked.test.pi-hole.net -b 127.0.0.3 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
+}
+
+@test "Client 3: Regex blacklist domain is not blocked" {
+  run bash -c "dig regex1.test.pi-hole.net -b 127.0.0.3 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
+}
+
+@test "Client 3: Gravity domain is not blocked" {
+  run bash -c "dig discourse.pi-hole.net -b 127.0.0.3 @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
 }
 
 @test "Google.com (A) is not blocked" {
   run bash -c "dig A google.com @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} != "0.0.0.0" ]]
-  [[ ${lines[1]} == "" ]]
 }
 
 @test "Google.com (AAAA) is not blocked (TCP query)" {
@@ -257,4 +282,10 @@
   run bash -c 'curl -s -H "X-Pi-hole-Authenticate: cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6" 127.0.0.1:8080/admin/api/auth'
   printf "%s\n" "${lines[@]}"
   [[ ${lines[0]} == "{\"status\":\"success\"}" ]]
+}
+
+@test "Blocking status is correctly logged in pihole.log" {
+  run bash -c 'grep -c "gravity blocked gravity-blocked.test.pi-hole.net is 0.0.0.0" /var/log/pihole.log'
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} == "2" ]]
 }
