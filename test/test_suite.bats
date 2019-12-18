@@ -88,6 +88,18 @@
   [[ ${lines[0]} == "0.0.0.0" ]]
 }
 
+@test "Same domain is not blocked for client 1 ..." {
+  run bash -c "dig regex1.test.pi-hole.net @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
+}
+
+@test "... or client 3" {
+  run bash -c "dig regex1.test.pi-hole.net -b 127.0.0.3  @127.0.0.1 +short"
+  printf "%s\n" "${lines[@]}"
+  [[ ${lines[0]} != "0.0.0.0" ]]
+}
+
 @test "Client 2: Unassociated blacklist match is not blocked" {
   run bash -c "dig blacklist-blocked.test.pi-hole.net -b 127.0.0.2 @127.0.0.1 +short"
   printf "%s\n" "${lines[@]}"
