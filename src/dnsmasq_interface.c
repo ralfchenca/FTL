@@ -435,6 +435,7 @@ bool _FTL_new_query(const unsigned int flags, const char *name,
 	query->id = id;
 	query->complete = false;
 	query->response = converttimeval(request);
+	query->forwardresponse = 0u;
 	// Initialize reply type
 	query->reply = REPLY_UNKNOWN;
 	// Store DNSSEC result for this domain
@@ -654,6 +655,10 @@ void _FTL_forwarded(const unsigned int flags, const char *name, const struct all
 	// Update counter for forwarded queries
 	counters->forwardedqueries++;
 
+	struct timeval request;
+	gettimeofday(&request, 0);
+	query->forwardresponse = converttimeval(request);
+
 	// Release allocated memory
 	free(forward);
 
@@ -823,7 +828,7 @@ void _FTL_reply(const unsigned short flags, const char *name, const struct all_a
 		// Save query response time
 		forwardedData *forward = getForward(query->forwardID, true);
 		forward->responses++;
-		unsigned long rtime = converttimeval(response) - query->response;
+		unsigned long rtime = converttimeval(response) - query->forwardresponse;
 		forward->rtime += rtime;
 		unsigned long mean = forward->rtime / forward->responses;
 		forward->rtuncertainty += (mean - rtime)*(mean - rtime);
