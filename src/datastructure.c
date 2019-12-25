@@ -74,6 +74,10 @@ int findForwardID(const char * forwardString, const bool count)
 	// to be done separately to be non-blocking
 	forward->new = true;
 	forward->namepos = 0; // 0 -> string with length zero
+	// Initialize response time values
+	forward->rtime = 0u;
+	forward->rtuncertainty = 0u;
+	forward->responses = 0u;
 	// Increase counter by one
 	counters->forwarded++;
 

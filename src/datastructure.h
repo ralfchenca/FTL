@@ -50,6 +50,9 @@ typedef struct {
 	unsigned char magic;
 	size_t ippos;
 	size_t namepos;
+	unsigned long rtime;
+	unsigned long rtuncertainty;
+	unsigned int responses;
 	int count;
 	int failed;
 	bool new;
