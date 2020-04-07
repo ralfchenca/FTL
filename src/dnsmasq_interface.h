@@ -54,6 +54,8 @@ bool _FTL_CNAME(const char *domain, const struct crec *cpp, const int id, const 
 void FTL_dnsmasq_reload(void);
 void FTL_fork_and_bind_sockets(struct passwd *ent_pw);
 int FTL_database_import(int cache_size, struct crec **rhash, int hashsz);
+void FTL_TCP_worker_terminating(void);
+
 void set_debug_dnsmasq_lines(char enabled);
 
 void FTL_dnsmasq_log(const char *payload, const int length);

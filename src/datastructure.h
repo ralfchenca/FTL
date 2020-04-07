@@ -12,18 +12,14 @@
 
 // Definition of sqlite3_stmt
 #include "database/sqlite3.h"
-// struct ucharvec
-#include "vector.h"
 
 void strtolower(char *str);
-int findForwardID(const char * forward, const bool count);
+int findUpstreamID(const char * upstream, const bool count);
 int findDomainID(const char *domain, const bool count);
 int findClientID(const char *client, const bool count);
+int findCacheID(int domainID, int clientID);
 bool isValidIPv4(const char *addr);
 bool isValidIPv6(const char *addr);
-const char *getDomainString(const int queryID);
-const char *getClientIPString(const int queryID);
-const char *getClientNameString(const int queryID);
 
 void FTL_reload_all_domainlists(void);
 void FTL_reset_per_client_domain_data(void);
@@ -38,41 +34,39 @@ typedef struct {
 	time_t timestamp;
 	int domainID;
 	int clientID;
-	int forwardID;
+	int upstreamID;
 	int id; // the ID is a (signed) int in dnsmasq, so no need for a long int here
+	int CNAME_domainID; // only valid if query has a CNAME blocking status
 	unsigned long response; // saved in units of 1/10 milliseconds (1 = 0.1ms, 2 = 0.2ms, 2500 = 250.0ms, etc.)
 	unsigned long forwardresponse; // saved in units of 1/10 milliseconds (1 = 0.1ms, 2 = 0.2ms, 2500 = 250.0ms, etc.)
 	int64_t db;
 	unsigned int timeidx;
+	bool whitelisted;
 	bool complete;
 } queriesData;
 
 typedef struct {
 	unsigned char magic;
-	size_t ippos;
-	size_t namepos;
 	unsigned long rtime;
 	unsigned long rtuncertainty;
 	unsigned int responses;
+	bool new;
 	int count;
 	int failed;
-	bool new;
-} forwardedData;
+	size_t ippos;
+	size_t namepos;
+} upstreamsData;
 
 typedef struct {
 	unsigned char magic;
-	size_t ippos;
-	size_t namepos;
-	time_t lastQuery;
+	bool new;
 	int count;
 	int blockedcount;
 	int overTime[OVERTIME_SLOTS];
 	unsigned int numQueriesARP;
-	bool new;
-	sqlite3_stmt* whitelist_stmt;
-	sqlite3_stmt* gravity_stmt;
-	sqlite3_stmt* blacklist_stmt;
-	bool *regex_enabled[2];
+	size_t ippos;
+	size_t namepos;
+	time_t lastQuery;
 } clientsData;
 
 typedef struct {
@@ -80,8 +74,20 @@ typedef struct {
 	size_t domainpos;
 	int count;
 	int blockedcount;
-	ucharvec *clientstatus; // FTL-internal cache, not accessible over shared memory!
 } domainsData;
+
+typedef struct {
+	unsigned char magic;
+	unsigned char blocking_status;
+	int domainID;
+	int clientID;
+	int black_regex_idx;
+} DNSCacheData;
+
+const char *getDomainString(const queriesData* query);
+const char *getCNAMEDomainString(const queriesData* query);
+const char *getClientIPString(const queriesData* query);
+const char *getClientNameString(const queriesData* query);
 
 // Pointer getter functions
 #define getQuery(queryID, checkMagic) _getQuery(queryID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
@@ -90,7 +96,9 @@ queriesData* _getQuery(int queryID, bool checkMagic, int line, const char * func
 clientsData* _getClient(int clientID, bool checkMagic, int line, const char * function, const char * file);
 #define getDomain(domainID, checkMagic) _getDomain(domainID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
 domainsData* _getDomain(int domainID, bool checkMagic, int line, const char * function, const char * file);
-#define getForward(forwardID, checkMagic) _getForward(forwardID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
-forwardedData* _getForward(int forwardID, bool checkMagic, int line, const char * function, const char * file);
+#define getUpstream(upstreamID, checkMagic) _getUpstream(upstreamID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
+upstreamsData* _getUpstream(int upstreamID, bool checkMagic, int line, const char * function, const char * file);
+#define getDNSCache(cacheID, checkMagic) _getDNSCache(cacheID, checkMagic, __LINE__, __FUNCTION__, __FILE__)
+DNSCacheData* _getDNSCache(int cacheID, bool checkMagic, int line, const char * function, const char * file);
 
 #endif //DATASTRUCTURE_H

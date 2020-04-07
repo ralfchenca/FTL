@@ -20,6 +20,50 @@
 #include "signals.h"
 // getDatabaseHostname()
 #include "database/network-table.h"
+// struct _res
+#include <resolv.h>
+
+static bool res_initialized = false;
+
+// Validate given hostname
+static bool valid_hostname(char* name, const char* clientip)
+{
+	// Check for validity of input
+	if(name == NULL)
+		return false;
+
+	// Check for maximum length of hostname
+	// Truncate if too long (MAXHOSTNAMELEN defaults to 64, see asm-generic/param.h)
+	if(strlen(name) > MAXHOSTNAMELEN)
+	{
+		logg("WARN: Hostname of client %s too long, truncating to %d chars!",
+		     clientip, MAXHOSTNAMELEN);
+		// We can modify the string in-place as the target is
+		// shorter than the source
+		name[MAXHOSTNAMELEN] = '\0';
+	}
+
+	// Iterate over characters in hostname
+	// to check for legal char: A-Z a-z 0-9 - _ .
+	for (char c; (c = *name); name++)
+	{
+		if ((c >= 'A' && c <= 'Z') ||
+		    (c >= 'a' && c <= 'z') ||
+		    (c >= '0' && c <= '9') ||
+			 c == '-' ||
+			 c == '_' ||
+			 c == '.' )
+			continue;
+
+		// Invalid character found, log and return hostname being invalid
+		logg("WARN: Hostname of client %s contains invalid character: %c (char code %d)",
+		     clientip, (unsigned char)c, (unsigned char)c);
+		return false;
+	}
+
+	// No invalid characters found
+	return true;
+}
 
 static char *resolveHostname(const char *addr)
 {
@@ -27,6 +71,9 @@ static char *resolveHostname(const char *addr)
 	struct hostent *he = NULL;
 	char *hostname = NULL;;
 	bool IPv6 = false;
+
+	if(config.debug & DEBUG_API)
+		logg("Trying to resolve %s", addr);
 
 	// Check if this is a hidden client
 	// if so, return "hidden" as hostname
@@ -36,6 +83,23 @@ static char *resolveHostname(const char *addr)
 		//if(hostname == NULL) return NULL;
 		return hostname;
 	}
+
+	// Initialize resolver subroutines if trying to resolve for the first time
+	// res_init() reads resolv.conf to get the default domain name and name server
+	// address(es). If no server is given, the local host is tried. If no domain
+	// is given, that associated with the local host is used.
+	if(!res_initialized)
+	{
+		res_init();
+		res_initialized = true;
+	}
+
+	// Force last available (MAXNS-1) server used for lookups to 127.0.0.1 (FTL itself)
+	struct in_addr nsbck = { 0 };
+	// Back up corresponding ns record in _res and ...
+	nsbck = _res.nsaddr_list[MAXNS-1].sin_addr;
+	// ... force FTL resolver to 127.0.0.1
+	inet_pton(AF_INET, "127.0.0.1", &_res.nsaddr_list[MAXNS-1].sin_addr);
 
 	// Test if we want to resolve an IPv6 address
 	if(strstr(addr,":") != NULL)
@@ -47,29 +111,37 @@ static char *resolveHostname(const char *addr)
 	{
 		struct in6_addr ipaddr;
 		inet_pton(AF_INET6, addr, &ipaddr);
+		// Known to leak some tiny amounts of memory under certain conditions
 		he = gethostbyaddr(&ipaddr, sizeof ipaddr, AF_INET6);
 	}
 	else if(!IPv6 && config.resolveIPv4) // Resolve IPv4 address only if requested
 	{
 		struct in_addr ipaddr;
 		inet_pton(AF_INET, addr, &ipaddr);
+		// Known to leak some tiny amounts of memory under certain conditions
 		he = gethostbyaddr(&ipaddr, sizeof ipaddr, AF_INET);
 	}
 
-	if(he == NULL)
-	{
-		// No hostname found
-		hostname = strdup("");
-		//if(hostname == NULL) return NULL;
-	}
-	else
+	// First check for he not being NULL before trying to dereference it
+	if(he != NULL && valid_hostname(he->h_name, addr))
 	{
 		// Return hostname copied to new memory location
 		hostname = strdup(he->h_name);
-		if(hostname == NULL) return NULL;
+
 		// Convert hostname to lower case
-		strtolower(hostname);
+		if(hostname != NULL)
+			strtolower(hostname);
 	}
+	else
+	{
+		// No (he == NULL) or invalid (valid_hostname returned false) hostname found
+		hostname = strdup("");
+	}
+
+	// Restore ns record in _res
+	_res.nsaddr_list[MAXNS-1].sin_addr = nsbck;
+
+	// Return result
 	return hostname;
 }
 
@@ -115,6 +187,7 @@ static size_t resolveAndAddHostname(size_t ippos, size_t oldnamepos)
 		logg("Not adding \"%s\" to buffer (unchanged)", oldname);
 	}
 
+	free(newname);
 	free(ipaddr);
 	free(oldname);
 
@@ -129,12 +202,18 @@ void resolveClients(const bool onlynew)
 	lock_shm();
 	int clientscount = counters->clients;
 	unlock_shm();
+
+	int skipped = 0;
 	for(int clientID = 0; clientID < clientscount; clientID++)
 	{
 		// Get client pointer
 		clientsData* client = getClient(clientID, true);
 		if(client == NULL)
+		{
+			logg("ERROR: Unable to get client pointer with ID %i, skipping...", clientID);
+			skipped++;
 			continue;
+		}
 
 		// Memory access needs to get locked
 		lock_shm();
@@ -146,7 +225,10 @@ void resolveClients(const bool onlynew)
 		// If onlynew flag is set, we will only resolve new clients
 		// If not, we will try to re-resolve all known clients
 		if(onlynew && !newflag)
+		{
+			skipped++;
 			continue;
+		}
 
 		// Obtain/update hostname of this client
 		size_t newnamepos = resolveAndAddHostname(ippos, oldnamepos);
@@ -158,6 +240,12 @@ void resolveClients(const bool onlynew)
 		client->new = false;
 		unlock_shm();
 	}
+
+	if(config.debug & DEBUG_API)
+	{
+		logg("%i / %i client host names resolved",
+		     clientscount-skipped, clientscount);
+	}
 }
 
 // Resolve upstream destination host names
@@ -165,36 +253,51 @@ void resolveForwardDestinations(const bool onlynew)
 {
 	// Lock counter access here, we use a copy in the following loop
 	lock_shm();
-	int forwardedcount = counters->forwarded;
+	int upstreams = counters->upstreams;
 	unlock_shm();
-	for(int forwardID = 0; forwardID < forwardedcount; forwardID++)
+
+	int skipped = 0;
+	for(int upstreamID = 0; upstreamID < upstreams; upstreamID++)
 	{
-		// Get forward pointer
-		forwardedData* forward = getForward(forwardID, true);
-		if(forward == NULL)
+		// Get upstream pointer
+		upstreamsData* upstream = getUpstream(upstreamID, true);
+		if(upstream == NULL)
+		{
+			logg("ERROR: Unable to get upstream pointer with ID %i, skipping...", upstreamID);
+			skipped++;
 			continue;
+		}
 
 		// Memory access needs to get locked
 		lock_shm();
-		bool newflag = forward->new;
-		size_t ippos = forward->ippos;
-		size_t oldnamepos = forward->namepos;
+		bool newflag = upstream->new;
+		size_t ippos = upstream->ippos;
+		size_t oldnamepos = upstream->namepos;
 		unlock_shm();
 
 		// If onlynew flag is set, we will only resolve new upstream destinations
 		// If not, we will try to re-resolve all known upstream destinations
 		if(onlynew && !newflag)
+		{
+			skipped++;
 			continue;
+		}
 
 		// Obtain/update hostname of this client
 		size_t newnamepos = resolveAndAddHostname(ippos, oldnamepos);
 
 		lock_shm();
 		// Store obtained host name (may be unchanged)
-		forward->namepos = newnamepos;
+		upstream->namepos = newnamepos;
 		// Mark entry as not new
-		forward->new = false;
+		upstream->new = false;
 		unlock_shm();
+	}
+
+	if(config.debug & DEBUG_API)
+	{
+		logg("%i / %i upstream server host names resolved",
+		     upstreams-skipped, upstreams);
 	}
 }
 

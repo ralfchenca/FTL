@@ -1,5 +1,5 @@
 /* Pi-hole: A black hole for Internet advertisements
-*  (c) 2019 Pi-hole, LLC (https://pi-hole.net)
+*  (c) 2020 Pi-hole, LLC (https://pi-hole.net)
 *  Network-wide ad blocking via your own hardware.
 *
 *  FTL Engine
@@ -10,27 +10,29 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include <stdio.h>
+#include <stdlib.h>
+// memmove()
+#include <string.h>
 // type bool
 #include <stdbool.h>
+// type sqlite3_stmt
+#include "database/sqlite3.h"
 
-#define VEC_ALLOC_STEP 2u
+#define VEC_ALLOC_STEP 10u
 
-typedef struct ucharvec {
-	unsigned int size;
+typedef struct sqlite3_stmt_vec {
 	unsigned int capacity;
-	unsigned char *items;
-	unsigned char (*get)(struct ucharvec *, unsigned int);
-	void (*append)(struct ucharvec *, unsigned char);
-	void (*set)(struct ucharvec *, unsigned int, unsigned char);
-	void (*del)(struct ucharvec *, unsigned int);
-	void (*free)(struct ucharvec *);
-} ucharvec;
+	sqlite3_stmt **items;
+	sqlite3_stmt *(*get)(struct sqlite3_stmt_vec *, unsigned int);
+	void (*set)(struct sqlite3_stmt_vec *, unsigned int, sqlite3_stmt*);
+	void (*free)(struct sqlite3_stmt_vec *);
+} sqlite3_stmt_vec;
 
-ucharvec *new_ucharvec(unsigned int initial_size);
-void append_ucharvec(ucharvec *v, unsigned char item);
-void set_ucharvec(ucharvec *v, unsigned int index, unsigned char item);
-unsigned char get_ucharvec(ucharvec *v, unsigned int index) __attribute__((pure));
-void del_ucharvec(ucharvec *v, unsigned int index);
-void free_ucharvec(ucharvec *v);
+sqlite3_stmt_vec *new_sqlite3_stmt_vec(unsigned int initial_size);
+void set_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int index, sqlite3_stmt* item);
+sqlite3_stmt* get_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int index) __attribute__((pure));
+void del_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int index);
+void free_sqlite3_stmt_vec(sqlite3_stmt_vec *v);
 
 #endif //VECTOR_H

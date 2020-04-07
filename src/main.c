@@ -86,8 +86,14 @@ int main (int argc, char* argv[])
 	// Check initial blocking status
 	check_blocking_status();
 
-	// Start the resolver
+	// Start the resolver, delay startup if requested
+	delay_startup();
 	startup = false;
+	if(config.debug != 0)
+	{
+		for(int i = 0; i < argc_dnsmasq; i++)
+			logg("DEBUG: argv[%i] = \"%s\"", i, argv_dnsmasq[i]);
+	}
 	main_dnsmasq(argc_dnsmasq, argv_dnsmasq);
 
 	logg("Shutting down...");
@@ -116,6 +122,6 @@ int main (int argc, char* argv[])
 
 	//Remove PID file
 	removepid();
-	logg("########## FTL terminated after %.1f ms! ##########", timer_elapsed_msec(EXIT_TIMER));
+	logg("########## FTL terminated after %e s! ##########", 1e-3*timer_elapsed_msec(EXIT_TIMER));
 	return EXIT_SUCCESS;
 }

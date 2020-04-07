@@ -33,6 +33,7 @@ httpsettingsStruct httpsettings;
 
 // Private global variables
 static char *conflinebuffer = NULL;
+static size_t size = 0;
 
 // Private prototypes
 static char *parse_FTLconf(FILE *fp, const char * key);
@@ -433,6 +434,19 @@ void read_FTLconf(void)
 	else
 		logg("   CNAME_DEEP_INSPECT: Inactive");
 
+	// DELAY_STARTUP
+	// defaults to: zero (seconds)
+	buffer = parse_FTLconf(fp, "DELAY_STARTUP");
+
+	config.delay_startup = 0;
+	if(buffer != NULL && sscanf(buffer, "%u", &config.delay_startup) &&
+	   (config.delay_startup > 0 && config.delay_startup <= 300))
+	{
+		logg("   DELAY_STARTUP: Requested to wait %u seconds during startup.", config.delay_startup);
+	}
+	else
+		logg("   DELAY_STARTUP: No delay requested.");
+
 	// Read DEBUG_... setting from pihole-FTL.conf
 	// This option should be the last one as it causes
 	// some rather verbose output into the log when
@@ -499,7 +513,6 @@ static char *parse_FTLconf(FILE *fp, const char * key)
 	// Go to beginning of file
 	fseek(fp, 0L, SEEK_SET);
 
-	size_t size = 0;
 	errno = 0;
 	while(getline(&conflinebuffer, &size, fp) != -1)
 	{
@@ -712,6 +725,10 @@ void read_debuging_settings(FILE *fp)
 	extern char debug_dnsmasq_lines;
 	debug_dnsmasq_lines = config.debug & DEBUG_DNSMASQ_LINES ? 1 : 0;
 
+	// DEBUG_VECTORS
+	// defaults to: false
+	setDebugOption(fp, "DEBUG_VECTORS", DEBUG_VECTORS);
+
 	if(config.debug)
 	{
 		logg("*****************************");
@@ -730,6 +747,7 @@ void read_debuging_settings(FILE *fp)
 		logg("* DEBUG_EXTBLOCKED      %s *", (config.debug & DEBUG_EXTBLOCKED)? "YES":"NO ");
 		logg("* DEBUG_CAPS            %s *", (config.debug & DEBUG_CAPS)? "YES":"NO ");
 		logg("* DEBUG_DNSMASQ_LINES   %s *", (config.debug & DEBUG_DNSMASQ_LINES)? "YES":"NO ");
+		logg("* DEBUG_VECTORS         %s *", (config.debug & DEBUG_VECTORS)? "YES":"NO ");
 		logg("*****************************");
 	}
 

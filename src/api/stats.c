@@ -454,18 +454,18 @@ int api_stats_upstreams(struct mg_connection *conn)
 		return send_json_unauthorized(conn);
 	}
 
-	for(int forwardID = 0; forwardID < counters->forwarded; forwardID++)
+	for(int upstreamID = 0; upstreamID < counters->forwarded; upstreamID++)
 	{
 		// If we want to print a sorted output, we fill the temporary array with
 		// the values we will use for sorting afterwards
 
-		// Get forward pointer
-		const forwardedData* forward = getForward(forwardID, true);
-		if(forward == NULL)
+		// Get upstream pointer
+		const upstreamsData* upstream = getUpstream(upstreamID, true);
+		if(upstream == NULL)
 			continue;
 
-		temparray[forwardID][0] = forwardID;
-		temparray[forwardID][1] = forward->count;
+		temparray[upstreamID][0] = upstreamID;
+		temparray[upstreamID][1] = upstream->count;
 	}
 
 	// Sort temporary array in descending order
@@ -497,32 +497,32 @@ int api_stats_upstreams(struct mg_connection *conn)
 		{
 			// Regular forward destionation
 			// Get sorted indices
-			const int forwardID = temparray[i][0];
+			const int upstreamID = temparray[i][0];
 
 			// Get forward pointer
-			const forwardedData* forward = getForward(forwardID, true);
-			if(forward == NULL)
+			const upstreamsData* upstream = getUpstream(upstreamID, true);
+			if(upstream == NULL)
 				continue;
 
-			// Get IP and host name of forward destination if available
-			ip = getstr(forward->ippos);
-			name = getstr(forward->namepos);
+			// Get IP and host name of upstream destination if available
+			ip = getstr(upstream->ippos);
+			name = getstr(upstream->namepos);
 
 			// Get percentage
-			count = forward->count;
+			count = upstream->count;
 
 			// Compute average response time and uncertainty (unit: seconds)
-			if(forward->responses > 0)
+			if(upstream->responses > 0)
 			{
 				// Wehave to multiply runcertainty by 1e-4 to get seconds
-				responsetime = 1e-4 * forward->rtime / forward->responses;
+				responsetime = 1e-4 * upstream->rtime / upstream->responses;
 			}
-			if(forward->responses > 1)
+			if(upstream->responses > 1)
 			{
 				// The actual value will be somewhere in a neighborhood around the mean value.
 				// This neighborhood of values is the uncertainty in the mean.
-				// Wehave to multiply runcertainty by (1e-4)^2 to get seconds
-				uncertainty = my_sqrt(1e-8 * forward->rtuncertainty / forward->responses / (forward->responses-1));
+				// We have to multiply runcertainty by (1e-4)^2 to get seconds
+				uncertainty = my_sqrt(1e-8 * upstream->rtuncertainty / upstream->responses / (upstream->responses-1));
 			}
 		}
 
@@ -655,17 +655,17 @@ int api_stats_history(struct mg_connection *conn)
 				for(int i = 0; i < counters->forwarded; i++)
 				{
 					// Get forward pointer
-					const forwardedData* forward = getForward(i, true);
-					if(forward == NULL)
+					const upstreamsData* upstream = getUpstream(i, true);
+					if(upstream == NULL)
 					{
 						continue;
 					}
 
 					// Try to match the requested string against their IP addresses and
 					// (if available) their host names
-					if(strcmp(getstr(forward->ippos), forwarddest) == 0 ||
-					   (forward->namepos != 0 &&
-					    strcmp(getstr(forward->namepos), forwarddest) == 0))
+					if(strcmp(getstr(upstream->ippos), forwarddest) == 0 ||
+					   (upstream->namepos != 0 &&
+					    strcmp(getstr(upstream->namepos), forwarddest) == 0))
 					{
 						forwarddestid = i;
 						break;
@@ -839,7 +839,7 @@ int api_stats_history(struct mg_connection *conn)
 
 		// 1 = gravity.list, 4 = wildcard, 5 = black.list
 		if((query->status == QUERY_GRAVITY ||
-		    query->status == QUERY_WILDCARD ||
+		    query->status == QUERY_REGEX ||
 		    query->status == QUERY_BLACKLIST) && !showblocked)
 			continue;
 		// 2 = forwarded, 3 = cached
@@ -867,20 +867,20 @@ int api_stats_history(struct mg_connection *conn)
 		{
 			// Does the user want to see queries answered from blocking lists?
 			if(forwarddestid == -2 && query->status != QUERY_GRAVITY
-			                       && query->status != QUERY_WILDCARD
+			                       && query->status != QUERY_REGEX
 			                       && query->status != QUERY_BLACKLIST)
 				continue;
 			// Does the user want to see queries answered from local cache?
 			else if(forwarddestid == -1 && query->status != QUERY_CACHE)
 				continue;
 			// Does the user want to see queries answered by an upstream server?
-			else if(forwarddestid >= 0 && forwarddestid != query->forwardID)
+			else if(forwarddestid >= 0 && forwarddestid != query->upstreamID)
 				continue;
 		}
 
 		// Ask subroutine for domain. It may return "hidden" depending on
 		// the privacy settings at the time the query was made
-		const char *domain = getDomainString(queryID);
+		const char *domain = getDomainString(query);
 
 		// Similarly for the client
 		const char *clientIPName = NULL;
@@ -890,9 +890,9 @@ int api_stats_history(struct mg_connection *conn)
 			continue;
 
 		if(strlen(getstr(client->namepos)) > 0)
-			clientIPName = getClientNameString(queryID);
+			clientIPName = getClientNameString(query);
 		else
-			clientIPName = getClientIPString(queryID);
+			clientIPName = getClientIPString(query);
 
 		unsigned long delay = query->response;
 		// Check if received (delay should be smaller than 30min)
@@ -992,7 +992,7 @@ int api_stats_recentblocked(struct mg_connection *conn)
 		}
 
 		if(query->status == QUERY_GRAVITY ||
-		   query->status == QUERY_WILDCARD ||
+		   query->status == QUERY_REGEX ||
 		   query->status == QUERY_BLACKLIST ||
 		   query->status == QUERY_EXTERNAL_BLOCKED_IP ||
 		   query->status == QUERY_EXTERNAL_BLOCKED_NULL ||
@@ -1002,7 +1002,7 @@ int api_stats_recentblocked(struct mg_connection *conn)
 
 			// Ask subroutine for domain. It may return "hidden" depending on
 			// the privacy settings at the time the query was made
-			const char *domain = getDomainString(queryID);
+			const char *domain = getDomainString(query);
 			if(domain == NULL)
 			{
 				continue;

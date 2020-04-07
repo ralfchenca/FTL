@@ -1,5 +1,5 @@
 /* Pi-hole: A black hole for Internet advertisements
-*  (c) 2019 Pi-hole, LLC (https://pi-hole.net)
+*  (c) 2020 Pi-hole, LLC (https://pi-hole.net)
 *  Network-wide ad blocking via your own hardware.
 *
 *  FTL Engine
@@ -8,136 +8,112 @@
 *  This file is copyright under the latest version of the EUPL.
 *  Please see LICENSE file for your rights under this license. */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "vector.h"
+// struct config
+#include "config.h"
+// logg()
+#include "log.h"
 
-// memmove()
-#include <string.h>
-
-
-/********************************* type ucharvec *********************************/
-ucharvec *new_ucharvec(unsigned int initial_size)
+sqlite3_stmt_vec *new_sqlite3_stmt_vec(unsigned int initial_size)
 {
-	ucharvec *v = calloc(1, sizeof(ucharvec));
-	v->size = initial_size;
+	if(config.debug & DEBUG_VECTORS)
+		logg("Initializing new sqlite3_stmt* vector with size %u", initial_size);
+
+	sqlite3_stmt_vec *v = calloc(1, sizeof(sqlite3_stmt_vec));
 	v->capacity = initial_size;
 	// Calloc ensures they are all set to zero which is the default state
-	v->items = calloc(initial_size, sizeof(unsigned char) * initial_size);
+	v->items = calloc(initial_size, sizeof(sqlite3_stmt *) * initial_size);
 	// Set correct subroutine pointers
-	v->append = append_ucharvec;
-	v->set = set_ucharvec;
-	v->get = get_ucharvec;
-	v->del = del_ucharvec;
-	v->free = free_ucharvec;
+	v->set = set_sqlite3_stmt_vec;
+	v->get = get_sqlite3_stmt_vec;
+	v->free = free_sqlite3_stmt_vec;
 	return v;
 }
 
-static void resize_ucharvec(ucharvec *v, unsigned int capacity)
+static void resize_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int capacity)
 {
-	printf("resize_ucharvec: Resizing %p from %u to %u\n", v, v->capacity, capacity);
+	if(config.debug & DEBUG_VECTORS)
+		logg("Resizing sqlite3_stmt* vector %p from %u to %u", v, v->capacity, capacity);
 
-	// If ptr is NULL, the call to realloc(ptr, size) is
-	// equivalent to malloc(size) so we can use it also for
-	// initializing a vector for the first time.
-	unsigned char *items = realloc(v->items, sizeof(unsigned char) * capacity);
-	if (items)
+	// If ptr is NULL, the call to realloc(ptr, size) is equivalent to
+	// malloc(size) so we can use it also for initializing a vector for the
+	// first time.
+	sqlite3_stmt **items = realloc(v->items, sizeof(sqlite3_stmt *) * capacity);
+	if(!items)
 	{
-		v->items = items;
-		v->capacity = capacity;
-	}
-	else
-	{
-		printf("ERROR: Memory allocation failed in resize_ucharvec(%p, %u)",
+		logg("ERROR: Memory allocation failed in resize_sqlite3_stmt_vec(%p, %u)",
 		       v, capacity);
-	}
-}
-void append_ucharvec(ucharvec *v, unsigned char item)
-{
-	if(v == NULL)
-	{
-		printf("ERROR: Passed NULL vector to append_ucharvec(%p, %u)",
-		       v, item);
 		return;
 	}
 
-	// Check if vector needs to be resized
-	if (v->capacity == v->size)
-	{
-		resize_ucharvec(v, v->capacity + VEC_ALLOC_STEP);
-	}
+	// Update items pointer
+	v->items = items;
 
-	// Append item
-	unsigned int index = v->size++;
-	v->items[index] = item;
+	// NULL-initialize newly allocated memory slots
+	for(unsigned int i = v->capacity; i < capacity; i++)
+		v->items[i] = NULL;
+
+	// Update capacity
+	v->capacity = capacity;
 }
 
-void set_ucharvec(ucharvec *v, unsigned int index, unsigned char item)
+void set_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int index, sqlite3_stmt *item)
 {
+	if(config.debug & DEBUG_VECTORS)
+		logg("Setting sqlite3_stmt** %p[%u] <-- %p", v, index, item);
+
 	if(v == NULL)
 	{
-		printf("ERROR: Passed NULL vector to set_ucharvec(%p, %u, %u)",
+		logg("ERROR: Passed NULL vector to set_sqlite3_stmt_vec(%p, %u, %p)",
 		       v, index, item);
 		return;
 	}
 
-	if (index >= v->size)
+	if(index >= v->capacity)
 	{
-		printf("ERROR: Boundary violation in set_ucharvec(%p, %u, %u)",
-		       v, index, item);
-		return;
+		// Allocate more memory when trying to set a statement vector entry with
+		// an index larger than the current array size (this makes set an
+		// equivalent alternative to append)
+		resize_sqlite3_stmt_vec(v, index + VEC_ALLOC_STEP);
 	}
 
 	// Set item
 	v->items[index] = item;
 }
 
-// This function has no effects except to return a value. It can
-// be subject to data flow analysis and might be eliminated.
-// Hence, we add the "pure" attribute to this function.
-unsigned char __attribute__((pure)) get_ucharvec(ucharvec *v, unsigned int index)
+// This function has no effects except to return a value. It can be subject to
+// data flow analysis and might be eliminated. Hence, we add the "pure"
+// attribute to this function.
+sqlite3_stmt * __attribute__((pure)) get_sqlite3_stmt_vec(sqlite3_stmt_vec *v, unsigned int index)
 {
 	if(v == NULL)
 	{
-		printf("ERROR: Passed NULL vector to get_ucharvec(%p, %u)",
+		logg("ERROR: Passed NULL vector to get_sqlite3_stmt_vec(%p, %u)",
 		       v, index);
 		return 0;
 	}
 
-	if (index >= v->size)
+	if(index >= v->capacity)
 	{
-		printf("ERROR: Boundary violation in get_ucharvec(%p, %u)",
-		       v, index);
-		return 0;
+		// Silently increase size of vector if trying to read out-of-bounds
+		resize_sqlite3_stmt_vec(v, index + VEC_ALLOC_STEP);
 	}
 
-	return v->items[index];
+	sqlite3_stmt* item = v->items[index];
+	if(config.debug & DEBUG_VECTORS)
+		logg("Getting sqlite3_stmt** %p[%u] --> %p", v, index, item);
+
+	return item;
 }
 
-void del_ucharvec(ucharvec *v, unsigned int index)
+void free_sqlite3_stmt_vec(sqlite3_stmt_vec *v)
 {
-	if (index >= v->size)
-		return;
+	if(config.debug & DEBUG_VECTORS)
+		logg("Freeing sqlite3_stmt* vector %p", v);
 
-	// Use memmove to ensure there are no gaps in the vector
-	size_t move = v->size - index - 1u;
-	memmove(&v->items[index], &v->items[index + 1u], move * sizeof(v->items[index]));
-
-	v->size--;
-
-	// // Shorten vector to save some space
-	// if (v->size > 0u && v->size == v->capacity / 4)
-	// {
-	// 	vResize(v, v->capacity / 2);
-	// }
-}
-
-void free_ucharvec(ucharvec *v)
-{
 	// Free elements of the vector...
 	free(v->items);
-	// ...and then then vector itself
+	// ...and then the vector itself
 	free(v);
 	v = NULL;
 }
-/********************************* type ucharvec *********************************/

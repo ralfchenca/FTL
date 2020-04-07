@@ -17,7 +17,7 @@ DNSMASQ_OPTS = -DHAVE_DNSSEC -DHAVE_DNSSEC_STATIC
 # Flags for compiling with libidn2: -DHAVE_LIBIDN2 -DIDN2_VERSION_NUMBER=0x02000003
 
 FTL_DEPS = *.h database/*.h api/*.h version.h
-FTL_DB_OBJ = database/common.o database/query-table.o database/network-table.o database/gravity-db.o database/database-thread.o
+FTL_DB_OBJ = database/common.o database/query-table.o database/network-table.o database/gravity-db.o database/database-thread.o database/sqlite3-ext.o
 FTL_API_OBJ = api/http-common.o api/routes.o api/ftl.o api/stats.o api/dns.o api/version.o api/auth.o api/settings.o api/stats_database.o
 FTL_OBJ = $(FTL_DB_OBJ) $(FTL_API_OBJ) main.o memory.o log.o daemon.o datastructure.o signals.o files.o setupVars.o args.o gc.o config.o \
           dnsmasq_interface.o resolve.o regex.o shmem.o capabilities.o overTime.o timers.o vector.o math.o
@@ -116,7 +116,7 @@ EXTRAWARN=-Werror -Waddress -Wlogical-op -Wmissing-field-initializers -Woverleng
 -Wfloat-equal -Wbad-function-cast -Wwrite-strings -Wparentheses -Wlogical-op -Wstrict-prototypes -Wmissing-prototypes -Wredundant-decls -Winline $(EXTRAWARN_GCC8)
 
 # -FILE_OFFSET_BITS=64: used by stat(). Avoids problems with files > 2 GB on 32bit machines
-CCFLAGS=-std=gnu11 -I$(IDIR) $(WARN_FLAGS) -D_FILE_OFFSET_BITS=64 $(HARDENING_FLAGS) $(DEBUG_FLAGS) $(CFLAGS) $(SQLITE_FLAGS)
+CCFLAGS=-std=gnu11 -pipe -I$(IDIR) $(WARN_FLAGS) -D_FILE_OFFSET_BITS=64 $(HARDENING_FLAGS) $(DEBUG_FLAGS) $(CFLAGS) $(SQLITE_FLAGS)
 
 # for FTL we need the pthread library
 # for dnsmasq we need the nettle crypto library and the gmp maths library
@@ -168,7 +168,7 @@ $(_CJSON_OBJ): $(CJSON_OBJ_DIR)/%.o: $(IDIR)/cJSON/%.c $(_CJSON_DEPS) | $(CJSON_
 	$(CC) -c -o $@ $< -g3 $(CCFLAGS)
 
 $(DB_OBJ_DIR)/sqlite3.o: $(IDIR)/database/sqlite3.c | $(DB_OBJ_DIR)
-	$(CC) -c -o $@ $< $(CCFLAGS)
+	$(CC) -c -o $@ $< -g3 $(CCFLAGS)
 
 $(ODIR):
 	mkdir -p $(ODIR)

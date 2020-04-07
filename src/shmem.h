@@ -27,6 +27,35 @@ typedef struct {
 	unsigned int next_str_pos;
 } ShmSettings;
 
+typedef struct {
+	int queries;
+	int blocked;
+	int forwarded;
+	int cached;
+	int unknown;
+	int upstreams;
+	int clients;
+	int domains;
+	int queries_MAX;
+	int upstreams_MAX;
+	int clients_MAX;
+	int domains_MAX;
+	int strings_MAX;
+	int gravity;
+	int querytype[TYPE_MAX-1];
+	int forwardedqueries;
+	int reply_NODATA;
+	int reply_NXDOMAIN;
+	int reply_CNAME;
+	int reply_IP;
+	int reply_domain;
+	int dns_cache_size;
+	int dns_cache_MAX;
+	int num_regex[2];
+} countersStruct;
+
+extern countersStruct *counters;
+
 /// Create shared memory
 ///
 /// \param name the name of the shared memory
@@ -73,5 +102,14 @@ void newOverTimeClient(const int clientID);
  * This also updates `overTimeClientData`.
  */
 void addOverTimeClientSlot(void);
+
+// Change ownership of shared memory objects
+void chown_all_shmem(struct passwd *ent_pw);
+
+// Per-client regex buffer storing whether or not a specific regex is enabled for a particular client
+void add_per_client_regex(unsigned int clientID);
+void reset_per_client_regex(const int clientID);
+bool get_per_client_regex(const int clientID, const int regexID);
+void set_per_client_regex(const int clientID, const int regexID, const bool value);
 
 #endif //SHARED_MEMORY_SERVER_H

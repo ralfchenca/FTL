@@ -162,7 +162,7 @@ int api_stats_database_overTime_history(struct mg_connection *conn)
 		switch (status)
 		{
 		case QUERY_GRAVITY:
-		case QUERY_WILDCARD:
+		case QUERY_REGEX:
 		case QUERY_BLACKLIST:
 		case QUERY_EXTERNAL_BLOCKED_IP:
 		case QUERY_EXTERNAL_BLOCKED_NULL:

@@ -29,9 +29,7 @@ typedef struct domainrecord {
 } domainrecord;
 
 bool gravityDB_open(void);
-bool gravityDB_prepare_client_statements(clientsData* client);
-void gravityDB_finalize_client_statements(clientsData* client);
-void gravityDB_reload_client_statements(void);
+bool gravityDB_prepare_client_statements(const int clientID, clientsData* client);
 void gravityDB_close(void);
 bool gravityDB_getTable(unsigned char list);
 const char* gravityDB_getDomain(int *rowid);
@@ -45,12 +43,11 @@ bool gravityDB_readTable(const int type);
 bool gravityDB_readTableGetDomain(domainrecord *domain);
 void gravityDB_readTableFinalize(void);
 
-bool in_gravity(const char *domain, clientsData* client);
-bool in_whitelist(const char *domain, clientsData* client);
-bool in_blacklist(const char *domain, clientsData* client);
+bool in_gravity(const char *domain, const int clientID, clientsData* client);
+bool in_whitelist(const char *domain, const int clientID, clientsData* client);
+bool in_blacklist(const char *domain, const int clientID, clientsData* client);
 
 bool gravityDB_get_regex_client_groups(clientsData* client, const int numregex, const int *regexid,
-                                       const unsigned char type, const char* table);
-
+                                       const unsigned char type, const char* table, const int clientID);
 
 #endif //GRAVITY_H

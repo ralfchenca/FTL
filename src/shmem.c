@@ -29,10 +29,15 @@
 #define SHARED_DOMAINS_NAME "/FTL-domains"
 #define SHARED_CLIENTS_NAME "/FTL-clients"
 #define SHARED_QUERIES_NAME "/FTL-queries"
-#define SHARED_FORWARDED_NAME "/FTL-forwarded"
+#define SHARED_UPSTREAMS_NAME "/FTL-upstreams"
 #define SHARED_OVERTIME_NAME "/FTL-overTime"
 #define SHARED_SETTINGS_NAME "/FTL-settings"
 #define SHARED_FIFO_LOG_NAME "/FTL-fifo-log"
+#define SHARED_DNS_CACHE "/FTL-dns-cache"
+#define SHARED_PER_CLIENT_REGEX "/FTL-per-client-regex"
+
+// Global counters struct
+countersStruct *counters = NULL;
 
 /// The pointer in shared memory to the shared string buffer
 static SharedMemory shm_lock = { 0 };
@@ -41,16 +46,19 @@ static SharedMemory shm_counters = { 0 };
 static SharedMemory shm_domains = { 0 };
 static SharedMemory shm_clients = { 0 };
 static SharedMemory shm_queries = { 0 };
-static SharedMemory shm_forwarded = { 0 };
+static SharedMemory shm_upstreams = { 0 };
 static SharedMemory shm_overTime = { 0 };
 static SharedMemory shm_settings = { 0 };
 static SharedMemory shm_fifo_log = { 0 };
+static SharedMemory shm_dns_cache = { 0 };
+static SharedMemory shm_per_client_regex = { 0 };
 
 // Variable size array structs
 static queriesData *queries = NULL;
 static clientsData *clients = NULL;
 static domainsData *domains = NULL;
-static forwardedData *forwarded = NULL;
+static upstreamsData *upstreams = NULL;
+static DNSCacheData *dns_cache = NULL;
 
 typedef struct {
 	pthread_mutex_t lock;
@@ -63,6 +71,46 @@ static int pagesize;
 static unsigned int local_shm_counter = 0;
 
 static size_t get_optimal_object_size(const size_t objsize, const size_t minsize);
+
+// chown_shmem() changes the file ownership of a given shared memory object
+static bool chown_shmem(SharedMemory *sharedMemory, struct passwd *ent_pw)
+{
+	// Open shared memory object
+	const int fd = shm_open(sharedMemory->name, O_RDWR, S_IRUSR | S_IWUSR);
+	if(fd == -1)
+	{
+		logg("FATAL: chown_shmem(): Failed to open shared memory object \"%s\": %s",
+			sharedMemory->name, strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if(fchown(fd, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
+	{
+		logg("WARNING: chown_shmem(%d, %d, %d): failed for %s: %s (%d)",
+		     fd, ent_pw->pw_uid, ent_pw->pw_gid, sharedMemory->name,
+		     strerror(errno), errno);
+		return false;
+	}
+	logg("Changing %s (%d) to %d:%d", sharedMemory->name, fd, ent_pw->pw_uid, ent_pw->pw_gid);
+	// Close shared memory object file descriptor as it is no longer
+	// needed after having called ftruncate()
+	close(fd);
+	return true;
+}
+
+void chown_all_shmem(struct passwd *ent_pw)
+{
+	chown_shmem(&shm_lock, ent_pw);
+	chown_shmem(&shm_strings, ent_pw);
+	chown_shmem(&shm_counters, ent_pw);
+	chown_shmem(&shm_domains, ent_pw);
+	chown_shmem(&shm_clients, ent_pw);
+	chown_shmem(&shm_queries, ent_pw);
+	chown_shmem(&shm_upstreams, ent_pw);
+	chown_shmem(&shm_overTime, ent_pw);
+	chown_shmem(&shm_settings, ent_pw);
+	chown_shmem(&shm_dns_cache, ent_pw);
+	chown_shmem(&shm_per_client_regex, ent_pw);
+}
 
 size_t addstr(const char *str)
 {
@@ -151,12 +199,19 @@ static void remap_shm(void)
 	// Remap shared object pointers which might have changed
 	realloc_shm(&shm_queries, counters->queries_MAX*sizeof(queriesData), false);
 	queries = (queriesData*)shm_queries.ptr;
+
 	realloc_shm(&shm_domains, counters->domains_MAX*sizeof(domainsData), false);
 	domains = (domainsData*)shm_domains.ptr;
+
 	realloc_shm(&shm_clients, counters->clients_MAX*sizeof(clientsData), false);
 	clients = (clientsData*)shm_clients.ptr;
-	realloc_shm(&shm_forwarded, counters->forwarded_MAX*sizeof(forwardedData), false);
-	forwarded = (forwardedData*)shm_forwarded.ptr;
+
+	realloc_shm(&shm_upstreams, counters->upstreams_MAX*sizeof(upstreamsData), false);
+	upstreams = (upstreamsData*)shm_upstreams.ptr;
+
+	realloc_shm(&shm_dns_cache, counters->dns_cache_MAX*sizeof(DNSCacheData), false);
+	dns_cache = (DNSCacheData*)shm_dns_cache.ptr;
+
 	realloc_shm(&shm_strings, counters->strings_MAX, false);
 	// strings are not exposed by a global pointer
 
@@ -256,12 +311,12 @@ bool init_shmem(void)
 	clients = (clientsData*)shm_clients.ptr;
 	counters->clients_MAX = size;
 
-	/****************************** shared forwarded struct ******************************/
-	size = get_optimal_object_size(sizeof(forwardedData), 1);
+	/****************************** shared upstreams struct ******************************/
+	size = get_optimal_object_size(sizeof(upstreamsData), 1);
 	// Try to create shared memory object
-	shm_forwarded = create_shm(SHARED_FORWARDED_NAME, size*sizeof(forwardedData));
-	forwarded = (forwardedData*)shm_forwarded.ptr;
-	counters->forwarded_MAX = size;
+	shm_upstreams = create_shm(SHARED_UPSTREAMS_NAME, size*sizeof(upstreamsData));
+	upstreams = (upstreamsData*)shm_upstreams.ptr;
+	counters->upstreams_MAX = size;
 
 	/****************************** shared queries struct ******************************/
 	// Try to create shared memory object
@@ -281,6 +336,18 @@ bool init_shmem(void)
 	shm_fifo_log = create_shm(SHARED_FIFO_LOG_NAME, sizeof(fifologData));
 	fifo_log = (fifologData*)shm_fifo_log.ptr;
 
+	/****************************** shared DNS cache struct ******************************/
+	size = get_optimal_object_size(sizeof(DNSCacheData), 1);
+	// Try to create shared memory object
+	shm_dns_cache = create_shm(SHARED_DNS_CACHE, size*sizeof(DNSCacheData));
+	dns_cache = (DNSCacheData*)shm_dns_cache.ptr;
+	counters->dns_cache_MAX = size;
+
+	/****************************** shared per-client regex buffer ******************************/
+	size = get_optimal_object_size(1, 2);
+	// Try to create shared memory object
+	shm_per_client_regex = create_shm(SHARED_PER_CLIENT_REGEX, size);
+
 	return true;
 }
 
@@ -295,10 +362,12 @@ void destroy_shmem(void)
 	delete_shm(&shm_domains);
 	delete_shm(&shm_clients);
 	delete_shm(&shm_queries);
-	delete_shm(&shm_forwarded);
+	delete_shm(&shm_upstreams);
 	delete_shm(&shm_overTime);
 	delete_shm(&shm_settings);
 	delete_shm(&shm_fifo_log);
+	delete_shm(&shm_dns_cache);
+	delete_shm(&shm_per_client_regex);
 }
 
 SharedMemory create_shm(const char *name, const size_t size)
@@ -390,14 +459,20 @@ void *enlarge_shmem_struct(const char type)
 			sizeofobj = sizeof(domainsData);
 			counter = &counters->domains_MAX;
 			break;
-		case FORWARDED:
-			sharedMemory = &shm_forwarded;
-			allocation_step = get_optimal_object_size(sizeof(forwardedData), 1);
-			sizeofobj = sizeof(forwardedData);
-			counter = &counters->forwarded_MAX;
+		case UPSTREAMS:
+			sharedMemory = &shm_upstreams;
+			allocation_step = get_optimal_object_size(sizeof(upstreamsData), 1);
+			sizeofobj = sizeof(upstreamsData);
+			counter = &counters->upstreams_MAX;
+			break;
+		case DNS_CACHE:
+			sharedMemory = &shm_dns_cache;
+			allocation_step = get_optimal_object_size(sizeof(DNSCacheData), 1);
+			sizeofobj = sizeof(DNSCacheData);
+			counter = &counters->dns_cache_MAX;
 			break;
 		default:
-			logg("Invalid argument in enlarge_shmem_struct(): %i", type);
+			logg("Invalid argument in enlarge_shmem_struct(%i)", type);
 			return 0;
 	}
 
@@ -559,12 +634,12 @@ void memory_check(int which)
 				}
 			}
 		break;
-		case FORWARDED:
-			if(counters->forwarded >= counters->forwarded_MAX-1)
+		case UPSTREAMS:
+			if(counters->upstreams >= counters->upstreams_MAX-1)
 			{
 				// Have to reallocate shared memory
-				forwarded = enlarge_shmem_struct(FORWARDED);
-				if(forwarded == NULL)
+				upstreams = enlarge_shmem_struct(UPSTREAMS);
+				if(upstreams == NULL)
 				{
 					logg("FATAL: Memory allocation failed! Exiting");
 					exit(EXIT_FAILURE);
@@ -595,12 +670,78 @@ void memory_check(int which)
 				}
 			}
 		break;
+		case DNS_CACHE:
+			if(counters->dns_cache_size >= counters->dns_cache_MAX-1)
+			{
+				// Have to reallocate shared memory
+				dns_cache = enlarge_shmem_struct(DNS_CACHE);
+				if(dns_cache == NULL)
+				{
+					logg("FATAL: Memory allocation failed! Exiting");
+					exit(EXIT_FAILURE);
+				}
+			}
+		break;
 		default:
 			/* That cannot happen */
 			logg("Fatal error in memory_check(%i)", which);
 			exit(EXIT_FAILURE);
 		break;
 	}
+}
+
+void reset_per_client_regex(const int clientID)
+{
+	const unsigned int num_regex_tot = counters->num_regex[REGEX_BLACKLIST] +
+	                                   counters->num_regex[REGEX_WHITELIST];
+	for(unsigned int i = 0u; i < num_regex_tot; i++)
+	{
+		// Zero-initialize/reset (= false) all regex (white + black)
+		set_per_client_regex(clientID, i, false);
+	}
+}
+
+void add_per_client_regex(unsigned int clientID)
+{
+	const unsigned int num_regex_tot = counters->num_regex[REGEX_BLACKLIST] +
+	                                   counters->num_regex[REGEX_WHITELIST];
+	const size_t size = counters->clients * num_regex_tot;
+	if(size > shm_per_client_regex.size &&
+	   realloc_shm(&shm_per_client_regex, size, true))
+	{
+		reset_per_client_regex(clientID);
+	}
+}
+
+bool get_per_client_regex(const int clientID, const int regexID)
+{
+	const unsigned int num_regex_tot = counters->num_regex[REGEX_BLACKLIST] +
+	                                   counters->num_regex[REGEX_WHITELIST];
+	const unsigned int id = clientID * num_regex_tot + regexID;
+	const unsigned int maxval = counters->clients * num_regex_tot;
+	if(id > maxval)
+	{
+		logg("ERROR: get_per_client_regex(%d,%d): Out of bounds (%d > %d * %d == %d)!",
+		     clientID, regexID, id, counters->clients-1, num_regex_tot, maxval);
+		return false;
+	}
+	return ((bool*) shm_per_client_regex.ptr)[id];
+}
+
+void set_per_client_regex(const int clientID, const int regexID, const bool value)
+{
+	const unsigned int num_regex_tot = counters->num_regex[REGEX_BLACKLIST] +
+	                                   counters->num_regex[REGEX_WHITELIST];
+	const unsigned int id = clientID * num_regex_tot + regexID;
+	const unsigned int maxval = counters->clients * num_regex_tot;
+	if(id > maxval)
+	{
+		logg("ERROR: set_per_client_regex(%d,%d,%s): Out of bounds (%d > %d * %d == %d)!",
+		     clientID, regexID, value ? "true" : "false",
+		     id, counters->clients-1, num_regex_tot, maxval);
+		return;
+	}
+	((bool*) shm_per_client_regex.ptr)[id] = value;
 }
 
 static inline bool check_range(int ID, int MAXID, const char* type, int line, const char * function, const char * file)
@@ -656,11 +797,20 @@ domainsData* _getDomain(int domainID, bool checkMagic, int line, const char * fu
 		return NULL;
 }
 
-forwardedData* _getForward(int forwardID, bool checkMagic, int line, const char * function, const char * file)
+upstreamsData* _getUpstream(int upstreamID, bool checkMagic, int line, const char * function, const char * file)
 {
-	if(check_range(forwardID, counters->forwarded_MAX, "forward", line, function, file) &&
-	   check_magic(forwardID, checkMagic, forwarded[forwardID].magic, "forward", line, function, file))
-		return &forwarded[forwardID];
+	if(check_range(upstreamID, counters->upstreams_MAX, "upstream", line, function, file) &&
+	   check_magic(upstreamID, checkMagic, upstreams[upstreamID].magic, "upstream", line, function, file))
+		return &upstreams[upstreamID];
+	else
+		return NULL;
+}
+
+DNSCacheData* _getDNSCache(int cacheID, bool checkMagic, int line, const char * function, const char * file)
+{
+	if(check_range(cacheID, counters->dns_cache_MAX, "dns_cache", line, function, file) &&
+	   check_magic(cacheID, checkMagic, dns_cache[cacheID].magic, "dns_cache", line, function, file))
+		return &dns_cache[cacheID];
 	else
 		return NULL;
 }
